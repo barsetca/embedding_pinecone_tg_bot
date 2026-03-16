@@ -35,6 +35,7 @@ cp .env.example .env
 # Запуск бота
 python bot.py
 ```
+Скриншоты работы бота размещены в директории screenshots/
 
 После запуска бот работает в режиме long polling. В Telegram: команда `/start`, затем обычные сообщения или фразы вида «Запомни …» / «Важно …».
 
@@ -100,6 +101,26 @@ python bot.py
 
 - **Бот не отвечает в Telegram**  
   Проверьте токен и что бот не запущен в другом процессе. Убедитесь, что в `.env` нет лишних пробелов вокруг `=` и значений.
+
+---
+
+## Тестирование
+
+Используются [pytest](https://pytest.org/), [pytest-asyncio](https://pytest-asyncio.readthedocs.io/) и [pytest-cov](https://pytest-cov.readthedocs.io/). API (OpenAI, Pinecone, Telegram) в тестах замоканы.
+
+```bash
+# Все тесты
+pytest
+
+# С выводом покрытия по модулям bot и pine
+pytest --cov=bot --cov=pine --cov-report=term-missing
+
+# Только тесты бота
+pytest tests/test_bot.py -v
+```
+
+- **tests/test_bot.py** — тесты для `extract_memory_text`, обработчиков `/start` и сообщений (с моками).
+- **tests/test_pine.py** — тесты для `PineconeClient`: инициализация без ключей, upsert, query, delete, describe_stats.
 
 ---
 
