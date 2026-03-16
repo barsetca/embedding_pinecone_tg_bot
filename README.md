@@ -64,6 +64,7 @@ python bot.py
 | `PINECONE_API_KEY`   | Да | API Key из Pinecone Console |
 | `PINECONE_INDEX_NAME`| Да | Имя индекса (например `telegram-bot-memories`) |
 | `PINECONE_REGION`    | Нет | Регион serverless (по умолчанию `us-east-1`) |
+| `LOG_LEVEL`          | Нет | Уровень логирования: `DEBUG`, `INFO` (по умолчанию), `WARNING`, `ERROR` |
 | `EMBEDDING_MODEL`    | Нет | Модель эмбеддингов (по умолчанию `text-embedding-3-small`) |
 | `CHAT_MODEL`         | Нет | Модель чата (по умолчанию `gpt-4o-mini`) |
 

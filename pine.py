@@ -1,3 +1,4 @@
+import logging
 import os
 from typing import Iterable, List, Dict, Any
 
@@ -9,6 +10,7 @@ from pinecone.db_data import Index
 
 
 load_dotenv()
+logger = logging.getLogger(__name__)
 
 # Маппинг строки региона из .env в enum AwsRegion (при необходимости можно расширить)
 _AWS_REGIONS = {
@@ -48,20 +50,25 @@ class PineconeClient:
         if not index_name:
             raise ValueError("Не указан PINECONE_INDEX_NAME в .env")
 
-        self.pc = Pinecone(api_key=api_key)
-
-        existing_names = set(self.pc.list_indexes().names())
-        # Размерность выбрана для модели text-embedding-3-small (1536)
-        if index_name not in existing_names:
-            region_enum = _AWS_REGIONS.get(region, AwsRegion.US_EAST_1)
-            self.pc.create_index(
-                name=index_name,
-                dimension=1536,
-                metric="cosine",
-                spec=ServerlessSpec(cloud=CloudProvider.AWS, region=region_enum),
-            )
-
-        self.index: Index = self.pc.Index(index_name)
+        try:
+            self.pc = Pinecone(api_key=api_key)
+            existing_names = set(self.pc.list_indexes().names())
+            # Размерность выбрана для модели text-embedding-3-small (1536)
+            if index_name not in existing_names:
+                region_enum = _AWS_REGIONS.get(region, AwsRegion.US_EAST_1)
+                logger.info("Создание индекса Pinecone: name=%s, region=%s", index_name, region)
+                self.pc.create_index(
+                    name=index_name,
+                    dimension=1536,
+                    metric="cosine",
+                    spec=ServerlessSpec(cloud=CloudProvider.AWS, region=region_enum),
+                )
+            else:
+                logger.debug("Используется существующий индекс: %s", index_name)
+            self.index = self.pc.Index(index_name)
+        except Exception as e:
+            logger.exception("Ошибка подключения к Pinecone (индекс %s): %s", index_name, e)
+            raise
 
     def upsert_vectors(self, vectors: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
         """
@@ -78,7 +85,14 @@ class PineconeClient:
         Returns:
             dict: ответ от Pinecone с информацией об операции upsert.
         """
-        return self.index.upsert(vectors=list(vectors))
+        try:
+            vectors_list = list(vectors)
+            result = self.index.upsert(vectors=vectors_list)
+            logger.debug("Upsert: записано векторов: %d", len(vectors_list))
+            return result
+        except Exception as e:
+            logger.exception("Ошибка upsert в Pinecone: %s", e)
+            raise
 
     def query(
         self,
@@ -97,11 +111,18 @@ class PineconeClient:
         Returns:
             dict: ответ от Pinecone с найденными совпадениями (matches).
         """
-        return self.index.query(
-            vector=vector,
-            top_k=top_k,
-            include_metadata=include_metadata,
-        )
+        try:
+            result = self.index.query(
+                vector=vector,
+                top_k=top_k,
+                include_metadata=include_metadata,
+            )
+            matches_count = len(result.get("matches", []) or [])
+            logger.debug("Query: найдено совпадений: %d", matches_count)
+            return result
+        except Exception as e:
+            logger.exception("Ошибка query в Pinecone: %s", e)
+            raise
 
     def delete_by_ids(self, ids: Iterable[str]) -> Dict[str, Any]:
         """
@@ -113,7 +134,14 @@ class PineconeClient:
         Returns:
             dict: ответ от Pinecone об операции удаления.
         """
-        return self.index.delete(ids=list(ids))
+        try:
+            ids_list = list(ids)
+            result = self.index.delete(ids=ids_list)
+            logger.debug("Delete: удалено id: %d", len(ids_list))
+            return result
+        except Exception as e:
+            logger.exception("Ошибка delete_by_ids в Pinecone: %s", e)
+            raise
 
     def delete_all(self) -> Dict[str, Any]:
         """
@@ -122,7 +150,13 @@ class PineconeClient:
         Returns:
             dict: ответ от Pinecone об операции удаления (deleteAll=True).
         """
-        return self.index.delete(delete_all=True)
+        try:
+            result = self.index.delete(delete_all=True)
+            logger.warning("Delete all: все векторы в индексе удалены")
+            return result
+        except Exception as e:
+            logger.exception("Ошибка delete_all в Pinecone: %s", e)
+            raise
 
     def describe_stats(self) -> Dict[str, Any]:
         """
@@ -131,5 +165,10 @@ class PineconeClient:
         Returns:
             dict: структура с полями namespace, total_vector_count и др.
         """
-        return self.index.describe_index_stats()
+        try:
+            result = self.index.describe_index_stats()
+            return result
+        except Exception as e:
+            logger.exception("Ошибка describe_index_stats в Pinecone: %s", e)
+            raise
 
