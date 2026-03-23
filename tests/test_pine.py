@@ -7,6 +7,7 @@ import os
 from unittest.mock import MagicMock, patch
 
 import pytest
+from pinecone.exceptions import NotFoundException
 
 
 @pytest.fixture
@@ -122,6 +123,20 @@ class TestPineconeClientMethods:
         pine_client.index.delete.assert_called_once_with(delete_all=True)
         assert result == {}
 
+    def test_delete_all_treats_empty_namespace_404_as_ok(self, pine_client):
+        """Пустой индекс: Pinecone 404 Namespace not found — считаем успехом."""
+        http_resp = MagicMock()
+        http_resp.status = 404
+        http_resp.reason = "Not Found"
+        http_resp.data = b'{"code":5,"message":"Namespace not found","details":[]}'
+        http_resp.getheaders.return_value = {}
+        pine_client.index.delete.side_effect = NotFoundException(http_resp=http_resp)
+
+        result = pine_client.delete_all()
+
+        pine_client.index.delete.assert_called_once_with(delete_all=True)
+        assert result == {}
+
     def test_describe_stats(self, pine_client):
         pine_client.index.describe_index_stats.return_value = MagicMock(
             total_vector_count=42
@@ -129,3 +144,17 @@ class TestPineconeClientMethods:
         result = pine_client.describe_stats()
         pine_client.index.describe_index_stats.assert_called_once()
         assert getattr(result, "total_vector_count", None) == 42
+
+    def test_integration_check(self, pine_client):
+        """describe_index_stats + query — как при проверке при старте бота."""
+        pine_client.index.describe_index_stats.return_value = MagicMock(total_vector_count=3)
+        assert pine_client.integration_check() is True
+        pine_client.index.describe_index_stats.assert_called()
+        pine_client.index.query.assert_called_once()
+        call_kw = pine_client.index.query.call_args[1]
+        assert call_kw["top_k"] == 1
+        assert len(call_kw["vector"]) == pine_client.dimension
+
+    def test_integration_check_false_on_error(self, pine_client):
+        pine_client.index.describe_index_stats.side_effect = RuntimeError("network")
+        assert pine_client.integration_check() is False

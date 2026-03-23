@@ -29,8 +29,9 @@ def bot_module(env_vars):
     """
     with patch.dict(os.environ, env_vars, clear=False):
         with patch("pine.PineconeClient", MagicMock()):
-            import bot as bot_mod
-            return bot_mod
+            with patch("rag_agent.RAGAgent", MagicMock()):
+                import bot as bot_mod
+                return bot_mod
 
 
 @pytest.fixture

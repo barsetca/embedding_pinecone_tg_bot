@@ -140,3 +140,44 @@ class TestHandleMessage:
             update.message.reply_text.assert_called_once()
             call_args = update.message.reply_text.call_args[0][0]
             assert "ошибка" in call_args.lower() or "попробуйте" in call_args.lower()
+
+    async def test_clear_indexes_denied_without_allowlist(self, bot_module):
+        """Без CLEAR_INDEXES_ALLOWED_USER_IDS кнопка очистки отклоняется."""
+        bot_module.USER_MODE.clear()
+        bot_module.CLEAR_INDEXES_ALLOWED_USER_IDS.clear()
+
+        update = MagicMock()
+        update.effective_user = MagicMock(id=999)
+        update.message = MagicMock(text=bot_module.BTN_CLEAR)
+        update.message.reply_text = AsyncMock()
+        context = MagicMock()
+
+        await bot_module.handle_message(update, context)
+
+        update.message.reply_text.assert_called_once()
+        call_args = update.message.reply_text.call_args[0][0]
+        assert "недоступна" in call_args.lower() or "CLEAR_INDEXES" in call_args
+
+    async def test_clear_indexes_confirm_and_execute(self, bot_module):
+        """После «ДА» вызывается очистка обоих индексов."""
+        bot_module.USER_MODE.clear()
+        bot_module.CLEAR_INDEXES_ALLOWED_USER_IDS.clear()
+        bot_module.CLEAR_INDEXES_ALLOWED_USER_IDS.add(999)
+
+        with patch.object(bot_module, "clear_all_pinecone_indexes", MagicMock()) as mock_clear:
+            update1 = MagicMock()
+            update1.effective_user = MagicMock(id=999)
+            update1.message = MagicMock(text=bot_module.BTN_CLEAR)
+            update1.message.reply_text = AsyncMock()
+            await bot_module.handle_message(update1, MagicMock())
+
+            update2 = MagicMock()
+            update2.effective_user = MagicMock(id=999)
+            update2.message = MagicMock(text="ДА")
+            update2.message.reply_text = AsyncMock()
+            await bot_module.handle_message(update2, MagicMock())
+
+            mock_clear.assert_called_once()
+            update2.message.reply_text.assert_called()
+            final_msg = update2.message.reply_text.call_args[0][0]
+            assert "очищен" in final_msg.lower()

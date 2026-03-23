@@ -2,6 +2,12 @@ python-telegram-bot==21.6
 openai>=1.60.0
 pinecone>=5.0.0
 python-dotenv>=1.0.0
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+langchain>=0.3.0
+langchain-openai>=0.2.0
+langchain-pinecone>=0.2.0
+langchain-text-splitters>=0.3.0
 
 # Тестирование
 pytest>=7.0.0
